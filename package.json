@@ -1,0 +1,19 @@
+{
+  "name": "remote-synth-poc",
+  "version": "1.0.0-alpha.1",
+  "author": "Jonathan Raoult",
+  "license": "MIT",
+  "devDependencies": {
+    "browser-sync": "^2.6.4",
+    "browserify": "^9.0.8",
+    "gulp": "^3.8.11",
+    "gulp-util": "^3.0.4",
+    "merge-stream": "^0.1.7",
+    "vinyl-buffer": "^1.0.0",
+    "vinyl-source-stream": "^1.1.0",
+    "watchify": "^3.1.2"
+  },
+  "dependencies": {
+    "peerjs": "^0.3.14"
+  }
+}
