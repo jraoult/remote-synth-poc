@@ -68,8 +68,21 @@ function listMidiOutputs() {
 }
 
 function getAudioStream() {
+
+  var constraints = {audio: {optional: []}};
+
+  // make sure the browser applies no transformation to the sound
+  ['googEchoCancellation', 'googEchoCancellation2', 'googAutoGainControl',
+    'googAutoGainControl2', 'googNoiseSuppression', 'googNoiseSuppression2', 'googBeamforming',
+    'googHighpassFilter', 'googTypingNoiseDetection']
+    .forEach(function(flag) {
+      var cons = {};
+      cons[flag] = false;
+      constraints.audio.optional.push(cons);
+    });
+
   return new Promise(function(resolve, reject) {
-    navigator.webkitGetUserMedia({video: false, audio: true}, resolve, reject);
+    navigator.webkitGetUserMedia(constraints, resolve, reject);
   });
 }
 
