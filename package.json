@@ -14,6 +14,6 @@
     "watchify": "^3.1.2"
   },
   "dependencies": {
-    "peerjs": "^0.3.14"
+    "simple-peer": "^5.1.0"
   }
 }

@@ -35,7 +35,7 @@ gulp.task('serve', ['js'], function() {
 
   browserSync({
     server: ['build', 'app'],
-    https: false,
+    https: true,
     ghostMode: false,
     open: false,
     notify: false

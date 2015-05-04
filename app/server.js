@@ -1,63 +1,89 @@
 'use strict';
 
-var PeerJS = require('peerjs'),
+var SimplePeer = require('simple-peer'),
   querystring = require('querystring');
+
+var pubnub = PUBNUB.init({
+  publish_key: 'pub-c-c57b184b-8508-4a64-a64e-e4c855794cd5',
+  subscribe_key: 'sub-c-ee2086c6-f13f-11e4-9cd1-0619f8945a4f',
+  ssl: true
+});
+
 
 function start() {
   var parsedParams = querystring.parse(location.search.substring(1));
   if (parsedParams.output) {
-    listen()
-      .then(function(peer) {
 
-        var serverId = peer.id;
+    listen(getAudioStream(), function(simplePeer) {
 
-        console.log('Server waiting for connections (id: %s)', serverId);
+      simplePeer.on('connect', function() {
 
-        peer.on('connection', function(connection) {
+        console.log('New client connected');
 
-          var clientId = connection.peer;
+        listMidiOutputs()
+          .then(function(midiOutputs) {
 
-          console.log('New client connected (id: %s)', clientId);
+            var midiOutput = midiOutputs.get(parsedParams.output);
 
-          Promise.all([
-            getAudioStream(),
-            listMidiOutputs()
-          ])
-            .then(function(args) {
-              var audioStream = args[0],
-                midiOutputs = args[1];
-
-              var midiOutput = midiOutputs.get(parsedParams.output);
-
-              peer.call(clientId, audioStream);
-
-              connection.on('data', function(data) {
-                if (data.type === 'midiMessage') {
-                  midiOutput.send(new Uint8Array(data.payload));
-                }
-              });
+            simplePeer.on('data', function(data) {
+              if (data.type === 'midiMessage') {
+                midiOutput.send(new Uint8Array(data.payload));
+              }
             });
-        });
+          });
       });
+    });
   }
 }
 
-function listen() {
-  return new Promise(function(resolve, reject) {
+function listen(audioStreamPromise, cb) {
 
-    var peer = new PeerJS({
-      key: 'xtpxqw0c606n7b9',
-      secure: false
-    });
+  pubnub.subscribe({
+    channel: 'reception',
+    message: function(uniqueChannelId) {
+      audioStreamPromise.then(function(stream) {
 
-    peer.on('open', function() {
-      resolve(peer);
-    });
+        var simplePeer = new SimplePeer({
+          initiator: true,
+          trickle:false,
+          stream: stream
+        });
 
-    peer.on('error', function(err) {
-      reject(err);
-    });
+        pubnub.subscribe({
+          channel: uniqueChannelId,
+          message: function(data) {
+            simplePeer.signal(data);
+          },
+          error: buildSignalingErrorLogger('Could not listen for client signals because of an error')
+        });
+
+        simplePeer.on('signal', function(data) {
+            pubnub.publish({
+              channel: uniqueChannelId,
+              message: data,
+              callback: function() {
+                console.group();
+                console.log('Sent signal to client through channel %s', uniqueChannelId);
+                console.log(data);
+                console.groupEnd();
+              }
+          })
+        });
+
+        cb(simplePeer);
+      });
+    },
+    error: buildSignalingErrorLogger('Could not listen for client request because of an error in signaling')
   });
+}
+
+function buildSignalingErrorLogger(header) {
+  return function(error) {
+    console.group();
+    console.error(header);
+    console.error(error);
+    console.groupEnd();
+  }
 }
 
 function listMidiOutputs() {
