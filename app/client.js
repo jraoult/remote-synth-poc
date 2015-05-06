@@ -1,96 +1,8 @@
 'use strict';
 
-var SimplePeer = require('simple-peer'),
+var channelFactory = require('./channel')(global.PUBNUB),
+  SimplePeer = require('simple-peer'),
   querystring = require('querystring');
-
-var pubnub = PUBNUB.init({
-  publish_key: 'pub-c-c57b184b-8508-4a64-a64e-e4c855794cd5',
-  subscribe_key: 'sub-c-ee2086c6-f13f-11e4-9cd1-0619f8945a4f',
-  ssl: true
-});
-
-function start() {
-  var parsedParams = querystring.parse(location.search.substring(1));
-  if (parsedParams.input) {
-    Promise.all([
-      listMidiInputs(),
-      connectToServer()
-    ])
-      .then(function(args) {
-        var midiInputs = args[0],
-          simplePeer = args[1];
-
-        simplePeer.on('stream', function(remoteStream) {
-          var player = new Audio();
-          player.src = URL.createObjectURL(remoteStream);
-          player.play();
-        });
-
-        simplePeer.on('connect', function() {
-          console.log('Connected to the server');
-
-          midiInputs.get(parsedParams.input).onmidimessage = function(midiEvent) {
-            simplePeer.send({
-              type: 'midiMessage',
-              payload: midiEvent.data
-            });
-          };
-        });
-      })
-      .catch(function(e) {
-        console.log(e);
-      });
-  }
-}
-
-function connectToServer() {
-  return new Promise(function(resolve, reject) {
-
-    var uniqueChannelId = PUBNUB.uuid();
-    var simplePeer = new SimplePeer({trickle:false});
-
-    pubnub.subscribe({
-      channel: uniqueChannelId,
-      message: function(data) {
-        console.group();
-        console.log('Got signal from server');
-        console.log(data);
-        console.groupEnd();
-        simplePeer.signal(data);
-      },
-      connect: function(){
-        pubnub.publish({
-          channel: 'reception',
-          message: uniqueChannelId,
-          callback: function() {
-
-            console.log('Client listening to signals from server on channel %s', uniqueChannelId);
-
-            simplePeer.on('signal', function(data) {
-              console.group();
-              console.log('Sending signal to server');
-              console.log(data);
-              console.groupEnd();
-
-              pubnub.publish({
-                channel: uniqueChannelId,
-                message: data
-              });
-            });
-
-            resolve(simplePeer);
-          },
-          error: function(error) {
-            reject(error)
-          }
-        });
-      },
-      error: function(error) {
-        console.error(error);
-      }
-    });
-  });
-}
 
 function listMidiInputs() {
   return navigator.requestMIDIAccess()
@@ -99,11 +11,97 @@ function listMidiInputs() {
     });
 }
 
-listMidiInputs()
-  .then(function(midiInputs) {
-    midiInputs.forEach(function(port) {
-      console.log(port);
-    });
+function connect() {
+  return new Promise(function(resolve, reject) {
+
+    var reception = channelFactory('reception'),
+      channel = channelFactory(),
+      simplePeer = new SimplePeer({trickle: false});
+
+    reception
+      .publish(channel.id);
+
+    //channel
+    //  .subscribe(function onMessage(data) {
+    //
+    //    console.group();
+    //    console.log('Got signal from server');
+    //    console.log(data);
+    //    console.groupEnd();
+    //
+    //    simplePeer.signal(data);
+    //  })
+    //  .then(function whenSubscribed() {
+    //
+    //    console.log('Client listening to signals from server on channel %s', channel.id);
+    //
+    //    return reception
+    //      .publish(channel.id)
+    //      .then(function() {
+    //
+    //        simplePeer.on('connect', function() {
+    //          resolve(simplePeer);
+    //        });
+    //
+    //        simplePeer.on('signal', function(data) {
+    //
+    //          if(!data.sdp) return;
+    //
+    //          channel
+    //            .publish(data)
+    //            .catch(console.error);
+    //        });
+    //      });
+    //  })
+    //  .catch(reject);
+
   });
+}
+
+function start() {
+
+  var listMidiInputsPromise = listMidiInputs();
+
+  listMidiInputsPromise
+    .then(function(midiPort) {
+      midiPort.forEach(function(port) {
+        console.log(port);
+      });
+    });
+
+  var parsedParams = querystring.parse(location.search.substring(1));
+  if (parsedParams.input) {
+
+    var midiInputPromise = listMidiInputsPromise
+      .then(function(midiInputs) {
+        return midiInputs.get(parsedParams.input)
+      });
+
+    connect()
+      .then(function(simplePeer) {
+
+        console.log('New peer to peer connection with the server ready');
+
+        simplePeer.on('stream', function(remoteStream) {
+          var player = new Audio();
+          player.src = URL.createObjectURL(remoteStream);
+          player.play();
+        });
+
+        midiInputPromise
+          .then(function(midiInput) {
+            midiInput.onmidimessage = function(midiEvent) {
+              simplePeer.send({
+                type: 'midiMessage',
+                payload: midiEvent.data
+              });
+            };
+          });
+      })
+      .catch(function(e) {
+        console.log(e);
+      });
+  }
+}
 
 start();

@@ -1,90 +1,8 @@
 'use strict';
 
-var SimplePeer = require('simple-peer'),
+var channelFactory = require('./channel')(global.PUBNUB),
+  SimplePeer = require('simple-peer'),
   querystring = require('querystring');
-
-var pubnub = PUBNUB.init({
-  publish_key: 'pub-c-c57b184b-8508-4a64-a64e-e4c855794cd5',
-  subscribe_key: 'sub-c-ee2086c6-f13f-11e4-9cd1-0619f8945a4f',
-  ssl: true
-});
-
-
-function start() {
-  var parsedParams = querystring.parse(location.search.substring(1));
-  if (parsedParams.output) {
-
-    listen(getAudioStream(), function(simplePeer) {
-
-      simplePeer.on('connect', function() {
-
-        console.log('New client connected');
-
-        listMidiOutputs()
-          .then(function(midiOutputs) {
-
-            var midiOutput = midiOutputs.get(parsedParams.output);
-
-            simplePeer.on('data', function(data) {
-              if (data.type === 'midiMessage') {
-                midiOutput.send(new Uint8Array(data.payload));
-              }
-            });
-          });
-      });
-    });
-  }
-}
-
-function listen(audioStreamPromise, cb) {
-
-  pubnub.subscribe({
-    channel: 'reception',
-    message: function(uniqueChannelId) {
-      audioStreamPromise.then(function(stream) {
-
-        var simplePeer = new SimplePeer({
-          initiator: true,
-          trickle:false,
-          stream: stream
-        });
-
-        pubnub.subscribe({
-          channel: uniqueChannelId,
-          message: function(data) {
-            simplePeer.signal(data);
-          },
-          error: buildSignalingErrorLogger('Could not listen for client signals because of an error')
-        });
-
-        simplePeer.on('signal', function(data) {
-            pubnub.publish({
-              channel: uniqueChannelId,
-              message: data,
-              callback: function() {
-                console.group();
-                console.log('Sent signal to client through channel %s', uniqueChannelId);
-                console.log(data);
-                console.groupEnd();
-              }
-          })
-        });
-
-        cb(simplePeer);
-      });
-    },
-    error: buildSignalingErrorLogger('Could not listen for client request because of an error in signaling')
-  });
-}
-
-function buildSignalingErrorLogger(header) {
-  return function(error) {
-    console.group();
-    console.error(header);
-    console.error(error);
-    console.groupEnd();
-  }
-}
 
 function listMidiOutputs() {
   return navigator.requestMIDIAccess()
@@ -112,12 +30,107 @@ function getAudioStream() {
   });
 }
 
+function buildSignalingErrorLogger(header) {
+  return function(error) {
+    console.group();
+    console.error(header);
+    console.error(error);
+    if (error.stack) {
+      console.log(error.stack);
+    }
+    console.groupEnd();
+  }
+}
 
-listMidiOutputs()
-  .then(function(midiOutputs) {
-    midiOutputs.forEach(function(port) {
-      console.log(port);
+function accept(cb) {
+  return channelFactory('reception')
+    .subscribe(function onNewClient(clientId) {
+      cb(channelFactory(clientId));
     });
+}
+
+function listenForConnection(audioStreamPromise, peerConnectedCb) {
+
+  return accept(function onNewClient(channel) {
+    audioStreamPromise
+      .then(function whenAudioReady(stream) {
+
+        var simplePeer;
+
+        channel
+          .subscribe(function onMessage(data) {
+            // no race condition because messages are never received before the subscription is completed
+            simplePeer.signal(data);
+          })
+          .then(function whenSubscribed() {
+
+            simplePeer = new SimplePeer({
+              initiator: true,
+              //stream: stream,
+              trickle: true
+            });
+
+            simplePeer.on('signal', function(data) {
+
+              if(!data.sdp) return;
+
+              channel.publish(data)
+                .then(function whenPublished() {
+                  console.group();
+                  console.log('Signal sent to client through channel %s', channel.id);
+                  console.log(data);
+                  console.groupEnd();
+                })
+                .catch(buildSignalingErrorLogger('Could not publish a signal to client channel'));
+            });
+
+            simplePeer.on('connect', peerConnectedCb);
+          });
+      });
   });
+}
+
+function start() {
+
+  var listMidiOutputsPromise = listMidiOutputs();
+
+  // help to pick the interface id when debugging
+  listMidiOutputsPromise
+    .then(function(midiPort) {
+      midiPort.forEach(function(port) {
+        console.log(port);
+      });
+    });
+
+  var parsedParams = querystring.parse(location.search.substring(1));
+  if (parsedParams.output) {
+
+    var midiOutputPromise = listMidiOutputsPromise
+      .then(function(midiOutputs) {
+        return midiOutputs.get(parsedParams.output)
+      });
+
+    listenForConnection(
+      getAudioStream(),
+      function onPeerConnected(simplePeer) {
+
+        console.log('New peer to peer connection with a client ready');
+
+        midiOutputPromise
+          .then(function(midiOutput) {
+
+            simplePeer.on('data', function(data) {
+              if (data.type === 'midiMessage') {
+                midiOutput.send(new Uint8Array(data.payload));
+              }
+            });
+          });
+      })
+      .then(function() {
+        console.log('Server ready and waiting for client connection');
+      })
+      .catch(buildSignalingErrorLogger('Could not subscribe to client channel for signals'));
+  }
+}
 
 start();
