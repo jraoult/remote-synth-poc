@@ -21,39 +21,36 @@ function connect() {
     reception
       .publish(channel.id);
 
-    //channel
-    //  .subscribe(function onMessage(data) {
-    //
-    //    console.group();
-    //    console.log('Got signal from server');
-    //    console.log(data);
-    //    console.groupEnd();
-    //
-    //    simplePeer.signal(data);
-    //  })
-    //  .then(function whenSubscribed() {
-    //
-    //    console.log('Client listening to signals from server on channel %s', channel.id);
-    //
-    //    return reception
-    //      .publish(channel.id)
-    //      .then(function() {
-    //
-    //        simplePeer.on('connect', function() {
-    //          resolve(simplePeer);
-    //        });
-    //
-    //        simplePeer.on('signal', function(data) {
-    //
-    //          if(!data.sdp) return;
-    //
-    //          channel
-    //            .publish(data)
-    //            .catch(console.error);
-    //        });
-    //      });
-    //  })
-    //  .catch(reject);
+    channel
+      .subscribe(function onMessage(data) {
+
+        //console.group();
+        //console.log('Got signal from server');
+        //console.log(data);
+        //console.groupEnd();
+
+        simplePeer.signal(data);
+      })
+      .then(function whenSubscribed() {
+
+        console.log('Client listening to signals from server on channel %s', channel.id);
+
+        return reception
+          .publish(channel.id)
+          .then(function() {
+
+            simplePeer.on('connect', function() {
+              resolve(simplePeer);
+            });
+
+            simplePeer.on('signal', function(data) {
+              channel
+                .publish(data)
+                .catch(console.error);
+            });
+          });
+      })
+      .catch(reject);
 
   });
 }

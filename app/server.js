@@ -66,25 +66,24 @@ function listenForConnection(audioStreamPromise, peerConnectedCb) {
 
             simplePeer = new SimplePeer({
               initiator: true,
-              //stream: stream,
+              stream: stream,
               trickle: true
             });
 
             simplePeer.on('signal', function(data) {
-
-              if(!data.sdp) return;
-
               channel.publish(data)
                 .then(function whenPublished() {
-                  console.group();
-                  console.log('Signal sent to client through channel %s', channel.id);
-                  console.log(data);
-                  console.groupEnd();
+                  //console.group();
+                  //console.log('Signal sent to client through channel %s', channel.id);
+                  //console.log(data);
+                  //console.groupEnd();
                 })
                 .catch(buildSignalingErrorLogger('Could not publish a signal to client channel'));
             });
 
-            simplePeer.on('connect', peerConnectedCb);
+            simplePeer.on('connect', function() {
+              peerConnectedCb(simplePeer);
+            });
           });
       });
   });

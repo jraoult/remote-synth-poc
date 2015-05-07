@@ -14,6 +14,8 @@ function init(Pubnub) {
       channelId = Pubnub.uuid();
     }
 
+    var clientId = Pubnub.uuid();
+
     return {
       get id() {
         return channelId;
@@ -23,7 +25,7 @@ function init(Pubnub) {
         return new Promise(function(resolve, reject) {
           pubnub.publish({
             channel: channelId,
-            message: message,
+            message: {sourceId: clientId, payload: message},
             callback: resolve,
             error: reject
           })
@@ -35,7 +37,9 @@ function init(Pubnub) {
           pubnub.subscribe({
             channel: channelId,
             message: function(message) {
-              cb(message);
+              if (message.sourceId !== clientId) {
+                cb(message.payload);
+              }
             },
             connect: resolve,
             error: reject
