@@ -2,6 +2,7 @@
 
 var channelFactory = require('./channel')(global.PUBNUB),
   SimplePeer = require('simple-peer'),
+  sdpTransform = require('./sdpTransformations').tranform,
   querystring = require('querystring');
 
 function listMidiOutputs() {
@@ -67,17 +68,11 @@ function listenForConnection(audioStreamPromise, peerConnectedCb) {
             simplePeer = new SimplePeer({
               initiator: true,
               stream: stream,
-              trickle: true
+              sdpTransform: sdpTransform
             });
 
             simplePeer.on('signal', function(data) {
               channel.publish(data)
-                .then(function whenPublished() {
-                  //console.group();
-                  //console.log('Signal sent to client through channel %s', channel.id);
-                  //console.log(data);
-                  //console.groupEnd();
-                })
                 .catch(buildSignalingErrorLogger('Could not publish a signal to client channel'));
             });
 

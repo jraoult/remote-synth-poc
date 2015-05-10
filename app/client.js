@@ -2,6 +2,7 @@
 
 var channelFactory = require('./channel')(global.PUBNUB),
   SimplePeer = require('simple-peer'),
+  sdpTransform = require('./sdpTransformations').tranform,
   querystring = require('querystring');
 
 function listMidiInputs() {
@@ -16,19 +17,12 @@ function connect() {
 
     var reception = channelFactory('reception'),
       channel = channelFactory(),
-      simplePeer = new SimplePeer({trickle: false});
-
-    reception
-      .publish(channel.id);
+      simplePeer = new SimplePeer({
+        sdpTransform: sdpTransform
+      });
 
     channel
       .subscribe(function onMessage(data) {
-
-        //console.group();
-        //console.log('Got signal from server');
-        //console.log(data);
-        //console.groupEnd();
-
         simplePeer.signal(data);
       })
       .then(function whenSubscribed() {
@@ -86,11 +80,22 @@ function start() {
         simplePeer.on('connect', function() {
           midiInputPromise
             .then(function(midiInput) {
+
+              var payload = new Array(3);
+
               midiInput.onmidimessage = function(midiEvent) {
-                simplePeer.send({
+                var midiData = midiEvent.data;
+
+                // reuse the array to avoid gc
+                // fastest way to convert a typed array to an array
+                payload[0] = midiData[0];
+                payload[1] = midiData[1];
+                payload[2] = midiData[2];
+
+                simplePeer.send(JSON.stringify({
                   type: 'midiMessage',
-                  payload: midiEvent.data
-                });
+                  payload: payload
+                }));
               };
             });
 

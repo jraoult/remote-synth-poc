@@ -23,12 +23,16 @@ function init(Pubnub) {
 
       publish: function(message) {
         return new Promise(function(resolve, reject) {
+
           pubnub.publish({
             channel: channelId,
             message: {sourceId: clientId, payload: message},
-            callback: resolve,
+            callback: function() {
+              //console.debug('Client %s through channel %s sent %o', clientId, channelId, message);
+              resolve();
+            },
             error: reject
-          })
+          });
         });
       },
 
@@ -38,6 +42,7 @@ function init(Pubnub) {
             channel: channelId,
             message: function(message) {
               if (message.sourceId !== clientId) {
+                //console.debug('Client %s through channel %s from %s got %o', clientId, channelId, message.sourceId, message);
                 cb(message.payload);
               }
             },
