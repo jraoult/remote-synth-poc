@@ -39,15 +39,13 @@ function connect() {
           .publish(channel.id)
           .then(function() {
 
-            simplePeer.on('connect', function() {
-              resolve(simplePeer);
-            });
-
             simplePeer.on('signal', function(data) {
               channel
                 .publish(data)
                 .catch(console.error);
             });
+
+            resolve(simplePeer);
           });
       })
       .catch(reject);
@@ -85,15 +83,18 @@ function start() {
           player.play();
         });
 
-        midiInputPromise
-          .then(function(midiInput) {
-            midiInput.onmidimessage = function(midiEvent) {
-              simplePeer.send({
-                type: 'midiMessage',
-                payload: midiEvent.data
-              });
-            };
-          });
+        simplePeer.on('connect', function() {
+          midiInputPromise
+            .then(function(midiInput) {
+              midiInput.onmidimessage = function(midiEvent) {
+                simplePeer.send({
+                  type: 'midiMessage',
+                  payload: midiEvent.data
+                });
+              };
+            });
+
+        });
       })
       .catch(function(e) {
         console.log(e);
