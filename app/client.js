@@ -2,8 +2,7 @@
 
 var channelFactory = require('./channel')(global.PUBNUB),
   SimplePeer = require('simple-peer'),
-  sdpTransform = require('./sdpTransformations').tranform,
-  querystring = require('querystring');
+  sdpTransform = require('./sdpTransformations').tranform;
 
 function listMidiInputs() {
   return navigator.requestMIDIAccess()
@@ -39,6 +38,11 @@ function connect() {
                 .catch(console.error);
             });
 
+            simplePeer.on('close', function() {
+              simplePeer.destroy();
+              channel.unsubscribe();
+            });
+
             resolve(simplePeer);
           });
       })
@@ -47,29 +51,14 @@ function connect() {
   });
 }
 
-function start() {
+function start(midiInput) {
 
-  var listMidiInputsPromise = listMidiInputs();
+  return connect()
+    .then(function(simplePeer) {
 
-  listMidiInputsPromise
-    .then(function(midiPort) {
-      midiPort.forEach(function(port) {
-        console.log(port);
-      });
-    });
+      console.log('New peer to peer connection with the server ready');
 
-  var parsedParams = querystring.parse(location.search.substring(1));
-  if (parsedParams.input) {
-
-    var midiInputPromise = listMidiInputsPromise
-      .then(function(midiInputs) {
-        return midiInputs.get(parsedParams.input)
-      });
-
-    connect()
-      .then(function(simplePeer) {
-
-        console.log('New peer to peer connection with the server ready');
+      return new Promise(function(resolve, reject) {
 
         simplePeer.on('stream', function(remoteStream) {
           var player = new Audio();
@@ -77,34 +66,34 @@ function start() {
           player.play();
         });
 
+        simplePeer.on('error', reject);
+
         simplePeer.on('connect', function() {
-          midiInputPromise
-            .then(function(midiInput) {
 
-              var payload = new Array(3);
+          var payload = new Array(3);
 
-              midiInput.onmidimessage = function(midiEvent) {
-                var midiData = midiEvent.data;
+          midiInput.onmidimessage = function(midiEvent) {
+            var midiData = midiEvent.data;
 
-                // reuse the array to avoid gc
-                // fastest way to convert a typed array to an array
-                payload[0] = midiData[0];
-                payload[1] = midiData[1];
-                payload[2] = midiData[2];
+            // reuse the array to avoid gc
+            // fastest way to convert a typed array to an array
+            payload[0] = midiData[0];
+            payload[1] = midiData[1];
+            payload[2] = midiData[2];
 
-                simplePeer.send(JSON.stringify({
-                  type: 'midiMessage',
-                  payload: payload
-                }));
-              };
-            });
+            simplePeer.send(JSON.stringify({
+              type: 'midiMessage',
+              payload: payload
+            }));
+          };
 
+          resolve();
         });
-      })
-      .catch(function(e) {
-        console.log(e);
       });
-  }
+    });
 }
 
-start();
+module.exports = {
+  listMidiInputs: listMidiInputs,
+  start: start
+};

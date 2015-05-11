@@ -2,8 +2,7 @@
 
 var channelFactory = require('./channel')(global.PUBNUB),
   SimplePeer = require('simple-peer'),
-  sdpTransform = require('./sdpTransformations').tranform,
-  querystring = require('querystring');
+  sdpTransform = require('./sdpTransformations').tranform;
 
 function listMidiOutputs() {
   return navigator.requestMIDIAccess()
@@ -79,52 +78,37 @@ function listenForConnection(audioStreamPromise, peerConnectedCb) {
             simplePeer.on('connect', function() {
               peerConnectedCb(simplePeer);
             });
+
+            simplePeer.on('close', function () {
+              simplePeer.destroy();
+              channel.unsubscribe();
+            });
           });
       });
   });
 }
 
-function start() {
+function start(midiOutput) {
 
-  var listMidiOutputsPromise = listMidiOutputs();
+  listenForConnection(
+    getAudioStream(),
+    function onPeerConnected(simplePeer) {
 
-  // help to pick the interface id when debugging
-  listMidiOutputsPromise
-    .then(function(midiPort) {
-      midiPort.forEach(function(port) {
-        console.log(port);
+      console.log('New peer to peer connection with a client ready');
+
+      simplePeer.on('data', function(data) {
+        if (data.type === 'midiMessage') {
+          midiOutput.send(new Uint8Array(data.payload));
+        }
       });
-    });
-
-  var parsedParams = querystring.parse(location.search.substring(1));
-  if (parsedParams.output) {
-
-    var midiOutputPromise = listMidiOutputsPromise
-      .then(function(midiOutputs) {
-        return midiOutputs.get(parsedParams.output)
-      });
-
-    listenForConnection(
-      getAudioStream(),
-      function onPeerConnected(simplePeer) {
-
-        console.log('New peer to peer connection with a client ready');
-
-        midiOutputPromise
-          .then(function(midiOutput) {
-
-            simplePeer.on('data', function(data) {
-              if (data.type === 'midiMessage') {
-                midiOutput.send(new Uint8Array(data.payload));
-              }
-            });
-          });
-      })
-      .then(function() {
-        console.log('Server ready and waiting for client connection');
-      })
-      .catch(buildSignalingErrorLogger('Could not subscribe to client channel for signals'));
-  }
+    })
+    .then(function() {
+      console.log('Server ready and waiting for client connection');
+    })
+    .catch(buildSignalingErrorLogger('Could not subscribe to client channel for signals'));
 }
 
-start();
+module.exports = {
+  listMidiOutputs: listMidiOutputs,
+  start: start
+};

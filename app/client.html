@@ -4,9 +4,49 @@
   <meta charset="UTF-8">
   <title>Remote Synth Client</title>
   <script src="https://cdn.pubnub.com/pubnub-dev.js"></script>
-  <script src="client.js" async></script>
+  <script src="clientUi.js" defer></script>
+  <style>
+    body {
+      font-family: sans-serif;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+    }
+
+    .header__title {
+      margin-right: 16px;
+    }
+
+    .midi-inputs-list {
+      padding: 0;
+
+      list-style: none;
+    }
+
+    .connection-state-badge {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+
+      background: hsl(207, 100%, 97%);
+    }
+
+    .connection-state-badge--connected {
+      background: hsl(92, 61%, 48%);
+    }
+  </style>
 </head>
 <body>
-  <h1>Remote Synth Client</h1>
+<div class="header">
+  <h1 class="header__title">Remote Synth Client</h1>
+
+  <div class="connection-state-badge js-connection-state-badge"></div>
+</div>
+
+<h3>Midi inputs</h3>
+<ul class="midi-inputs-list">
+</ul>
 </body>
 </html>

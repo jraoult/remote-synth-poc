@@ -19,13 +19,16 @@ function doBundle(src) {
     .bundle()
     .pipe(source(path.basename(src)))
     .pipe(buffer())
-    .on('error', gutil.log);
+    .on('error', function(error) {
+      gutil.log(error);
+      this.emit('end');
+    });
 }
 
 gulp.task('js', function() {
   merge([
-    doBundle('./app/client.js'),
-    doBundle('./app/server.js')
+    doBundle('./app/clientUi.js'),
+    doBundle('./app/serverUi.js')
   ]).pipe(gulp.dest('build'))
 });
 

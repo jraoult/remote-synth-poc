@@ -50,6 +50,12 @@ function init(Pubnub) {
             error: reject
           });
         });
+      },
+
+      unsubscribe: function() {
+        pubnub.unsubscribe({
+          channel: channelId
+        });
       }
     };
   };

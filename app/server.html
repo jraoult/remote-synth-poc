@@ -4,9 +4,23 @@
   <meta charset="UTF-8">
   <title>Remote Synth Server</title>
   <script src="https://cdn.pubnub.com/pubnub-dev.js"></script>
-  <script src="server.js" async></script>
+  <script src="serverUi.js" defer></script>
+  <style>
+    body {
+      font-family: sans-serif;
+    }
+
+    .midi-outputs-list {
+      padding: 0;
+
+      list-style: none;
+    }
+  </style>
 </head>
 <body>
 <h1>Remote Synth Server</h1>
+<h3>Midi outputs</h3>
+<ul class="midi-outputs-list">
+</ul>
 </body>
 </html>
