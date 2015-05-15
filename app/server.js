@@ -44,9 +44,10 @@ function buildSignalingErrorLogger(header) {
 
 function accept(cb) {
   return channelFactory('reception')
-    .subscribe(function onNewClient(clientId) {
+    .onMessage(function onNewClient(clientId) {
       cb(channelFactory(clientId));
-    });
+    })
+    .subscribe();
 }
 
 function listenForConnection(audioStreamPromise, peerConnectedCb) {
@@ -58,10 +59,11 @@ function listenForConnection(audioStreamPromise, peerConnectedCb) {
         var simplePeer;
 
         channel
-          .subscribe(function onMessage(data) {
+          .onMessage(function(data) {
             // no race condition because messages are never received before the subscription is completed
             simplePeer.signal(data);
           })
+          .subscribe()
           .then(function whenSubscribed() {
 
             simplePeer = new SimplePeer({
@@ -79,9 +81,9 @@ function listenForConnection(audioStreamPromise, peerConnectedCb) {
               peerConnectedCb(simplePeer);
             });
 
-            simplePeer.on('close', function () {
+            simplePeer.on('close', function() {
               simplePeer.destroy();
-              channel.unsubscribe();
+              channel.destroy();
             });
           });
       });

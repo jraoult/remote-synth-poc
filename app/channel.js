@@ -1,5 +1,7 @@
 'use strict';
 
+var EventEmitter = require("events").EventEmitter;
+
 function init(Pubnub) {
 
   var pubnub = Pubnub.init({
@@ -14,11 +16,17 @@ function init(Pubnub) {
       channelId = Pubnub.uuid();
     }
 
-    var clientId = Pubnub.uuid();
+    var clientId = Pubnub.uuid(),
+      eventEmitter = new EventEmitter();
 
-    return {
+    var channel = {
       get id() {
         return channelId;
+      },
+
+      onMessage: function(cb) {
+        eventEmitter.on('message', cb);
+        return channel;
       },
 
       publish: function(message) {
@@ -36,14 +44,14 @@ function init(Pubnub) {
         });
       },
 
-      subscribe: function(cb) {
+      subscribe: function() {
         return new Promise(function(resolve, reject) {
           pubnub.subscribe({
             channel: channelId,
             message: function(message) {
               if (message.sourceId !== clientId) {
                 //console.debug('Client %s through channel %s from %s got %o', clientId, channelId, message.sourceId, message);
-                cb(message.payload);
+                eventEmitter.emit('message', message.payload);
               }
             },
             connect: resolve,
@@ -52,12 +60,15 @@ function init(Pubnub) {
         });
       },
 
-      unsubscribe: function() {
+      destroy: function() {
+        eventEmitter.removeAllListeners();
         pubnub.unsubscribe({
           channel: channelId
         });
       }
     };
+
+    return channel;
   };
 }
 

@@ -33,7 +33,8 @@ if (midiInputId !== null) {
           .then(function() {
             connectionStateBadge.classList.add('connection-state-badge--connected');
           })
-          .catch(function() {
+          .catch(function(error) {
+            console.error(error);
             connectionStateBadge.classList.add('error');
           });
       }
