@@ -86,10 +86,10 @@ function start(midiInput) {
         payload[1] = midiData[1];
         payload[2] = midiData[2];
 
-        simplePeer.send(JSON.stringify({
+        simplePeer.send({
           type: 'midiMessage',
           payload: payload
-        }));
+        });
       };
     });
   })
