@@ -32,3 +32,7 @@ if (midiOutputId !== null) {
       }
     });
 }
+
+server.enumerateAudioDevices().then(function(devices) {
+  console.log(devices);
+});

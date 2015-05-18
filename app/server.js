@@ -1,33 +1,13 @@
 'use strict';
 
 var channelFactory = require('./channel')(global.PUBNUB),
-  SimplePeer = require('simple-peer'),
-  sdpTransform = require('./sdpTransformations').tranform;
+  SynthServer = require('./SynthServer');
 
 function listMidiOutputs() {
   return navigator.requestMIDIAccess()
     .then(function(midiAccess) {
       return midiAccess.outputs;
     });
-}
-
-function getAudioStream() {
-
-  var constraints = {audio: {optional: []}};
-
-  // make sure the browser applies no transformation to the sound
-  ['googEchoCancellation', 'googEchoCancellation2', 'googAutoGainControl',
-    'googAutoGainControl2', 'googNoiseSuppression', 'googNoiseSuppression2', 'googBeamforming',
-    'googHighpassFilter', 'googTypingNoiseDetection']
-    .forEach(function(flag) {
-      var cons = {};
-      cons[flag] = false;
-      constraints.audio.optional.push(cons);
-    });
-
-  return new Promise(function(resolve, reject) {
-    navigator.webkitGetUserMedia(constraints, resolve, reject);
-  });
 }
 
 function buildSignalingErrorLogger(header) {
@@ -50,42 +30,30 @@ function accept(cb) {
     .subscribe();
 }
 
-function listenForConnection(audioStreamPromise, peerConnectedCb) {
+function listenForConnection(connectedCb) {
 
   return accept(function onNewClient(channel) {
-    audioStreamPromise
-      .then(function whenAudioReady(stream) {
 
-        var simplePeer;
+    var synthServer = new SynthServer();
 
-        channel
-          .onMessage(function(data) {
-            // no race condition because messages are never received before the subscription is completed
-            simplePeer.signal(data);
-          })
-          .subscribe()
-          .then(function whenSubscribed() {
+    synthServer.setSourceAudioDevice('7129e3c46b2d9bd7c4725e807c60e5b9504a3f97975d02ba3b29bc8cbb09b60d');
 
-            simplePeer = new SimplePeer({
-              initiator: true,
-              stream: stream,
-              sdpTransform: sdpTransform
-            });
-
-            simplePeer.on('signal', function(data) {
-              channel.publish(data)
-                .catch(buildSignalingErrorLogger('Could not publish a signal to client channel'));
-            });
-
-            simplePeer.on('connect', function() {
-              peerConnectedCb(simplePeer);
-            });
-
-            simplePeer.on('close', function() {
-              simplePeer.destroy();
-              channel.destroy();
-            });
-          });
+    channel
+      .onMessage(function(data) {
+        // no race condition because messages are never received before the subscription is completed
+        synthServer.signal(data);
+      })
+      .subscribe()
+      .then(function whenSubscribed() {
+        synthServer.onSignal(function(data) {
+          channel
+            .publish(data)
+            .catch(buildSignalingErrorLogger('Could not publish a signal to client channel'));
+        });
+      })
+      .then(function() {
+        synthServer.start();
+        connectedCb(synthServer);
       });
   });
 }
@@ -93,15 +61,12 @@ function listenForConnection(audioStreamPromise, peerConnectedCb) {
 function start(midiOutput) {
 
   listenForConnection(
-    getAudioStream(),
-    function onPeerConnected(simplePeer) {
+    function whenConnected(synthServer) {
 
       console.log('New peer to peer connection with a client ready');
 
-      simplePeer.on('data', function(data) {
-        if (data.type === 'midiMessage') {
-          midiOutput.send(new Uint8Array(data.payload));
-        }
+      synthServer.onMidiMessage(function(evt) {
+        midiOutput.send(new Uint8Array(evt.midiMessage));
       });
     })
     .then(function() {
@@ -112,5 +77,6 @@ function start(midiOutput) {
 
 module.exports = {
   listMidiOutputs: listMidiOutputs,
+  enumerateAudioDevices: SynthServer.enumerateAudioDevices,
   start: start
 };
